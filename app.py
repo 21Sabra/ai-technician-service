@@ -101,13 +101,13 @@ async def assign_technician(request: AITechnicianAssignmentRequest):
     try:
         logger.info(f"📨 Received request for booking {request.booking_id}")
         
+
         booking_data = {
             'booking_id': request.booking_id,
             'services': [s.model_dump(by_alias=True) for s in request.services],
             'scheduled_date': request.scheduled_date.isoformat(),
-            'location': request.location.model_dump() if request.location else None,
             'priority': request.priority
-        }
+}
         
         result = recommender.recommend(booking_data)
         
