@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 
 from config import settings
-from models.database import Database
+from models.dotnet_client import DotNetClient
 from models.technician_recommender import TechnicianRecommender
 from schemas.request import AITechnicianAssignmentRequest
 from schemas.response import AITechnicianAssignmentResponse, ErrorResponse
@@ -15,10 +15,9 @@ from utils.logger import setup_logger
 
 logger = setup_logger()
 
-db: Optional[Database] = None
+db: Optional[DotNetClient] = None
 recommender: Optional[TechnicianRecommender] = None
 
-# ✅ ده بيضيف 🔒 في الـ Swagger تلقائياً
 security = HTTPBearer()
 
 
@@ -30,22 +29,17 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 AI Technician Assignment Service Starting...")
     logger.info("="*60)
     logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Database: {settings.DB_NAME}")
+    logger.info(f"Backend URL: {settings.DOTNET_BACKEND_URL}")
     logger.info(f"Port: {settings.API_PORT}")
     logger.info("="*60)
     
-    db = Database()
-    if db.connect():
-        recommender = TechnicianRecommender(db)
-        logger.info("✅ Service initialized successfully")
-    else:
-        logger.error("❌ Failed to initialize service")
+    db = DotNetClient()
+    recommender = TechnicianRecommender(db)
+    logger.info("✅ Service initialized successfully")
     
     yield
     
     logger.info("🛑 Shutting down service...")
-    if db:
-        db.close()
     logger.info("✅ Shutdown complete")
 
 
@@ -65,10 +59,9 @@ app.add_middleware(
 )
 
 
-# ✅ Authentication بـ HTTPBearer - بيظهر في Swagger صح
 async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if credentials.credentials != settings.API_KEY:
-        logger.warning(f"❌ Invalid API key attempt")
+        logger.warning("❌ Invalid API key attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
@@ -82,7 +75,7 @@ async def health_check():
         "service": "AI Technician Assignment Service",
         "version": "1.0.0",
         "environment": settings.ENVIRONMENT,
-        "database_connected": db is not None and db.connection is not None
+        "backend_url": settings.DOTNET_BACKEND_URL
     }
 
 
@@ -146,7 +139,7 @@ async def get_available_technicians():
     if not db:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database not connected"
+            detail="Service not ready"
         )
     try:
         technicians = db.get_available_technicians()
@@ -174,14 +167,3 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower()
     )
-# ```
-
-# ---
-
-# دلوقتي في الـ Swagger:
-
-# **1.** هتلاقي زرار **Authorize 🔒** فوق يمين الصفحة
-
-# **2.** اضغطه وحط في الـ `Value` field:
-# ```
-# CarMaintenance_AI_2026_SecretKey!
