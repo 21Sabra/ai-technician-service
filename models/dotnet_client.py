@@ -1,4 +1,5 @@
 import httpx
+import pymssql
 import logging
 from typing import List, Dict, Optional
 from config import settings
@@ -7,76 +8,104 @@ logger = logging.getLogger(__name__)
 
 
 class DotNetClient:
-    """بيجيب البيانات من الـ .NET بدل DB مباشرة"""
-    
+
     def __init__(self):
         self.base_url = settings.DOTNET_BACKEND_URL
-        self.api_key = settings.API_KEY
-        self.headers = {
+        self.api_key  = settings.API_KEY
+        self.headers  = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type":  "application/json"
         }
-    
+
+    def _get_db_connection(self):
+        return pymssql.connect(
+            server=settings.DB_SERVER,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD,
+            database=settings.DB_NAME,
+            timeout=10
+        )
+
     def get_available_technicians(self) -> List[Dict]:
+        """جيب الفنيين من الـ DB مباشرة"""
         try:
-            with httpx.Client(timeout=10) as client:
-                response = client.get(
-                    f"{self.base_url}/api/ai/technicians/available",
-                    headers=self.headers
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"Found {len(data)} available technicians")
-                    return data
-                logger.error(f"Failed to get technicians: {response.status_code}")
-                return []
+            conn   = self._get_db_connection()
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT 
+                    t.Id           AS TechnicianId,
+                    u.DisplayName,
+                    u.Email,
+                    t.Specialization,
+                    t.Rating,
+                    t.IsAvailable
+                FROM Technicians t
+                INNER JOIN AspNetUsers u ON t.UserId = u.Id
+                WHERE t.IsAvailable = 1
+            """)
+            technicians = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            logger.info(f"Found {len(technicians)} available technicians")
+            return technicians
         except Exception as e:
-            logger.error(f"❌ Error calling .NET: {e}")
+            logger.error(f"❌ Error fetching technicians: {e}")
             return []
-    
+
     def get_technician_stats(self, technician_id: str) -> Optional[Dict]:
         try:
-            with httpx.Client(timeout=10) as client:
-                response = client.get(
-                    f"{self.base_url}/api/ai/technicians/{technician_id}/stats",
-                    headers=self.headers
-                )
-                if response.status_code == 200:
-                    return response.json()
-                return None
+            conn   = self._get_db_connection()
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as TotalBookings,
+                    SUM(CASE WHEN Status = 2 THEN 1 ELSE 0 END) as CompletedBookings,
+                    CAST(SUM(CASE WHEN Status = 2 THEN 1 ELSE 0 END) AS FLOAT) / 
+                        NULLIF(COUNT(*), 0) as SuccessRate
+                FROM Bookings
+                WHERE TechnicianId = %s
+            """, (technician_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return row
         except Exception as e:
-            logger.error(f"❌ Error getting stats: {e}")
+            logger.error(f"❌ Error fetching stats: {e}")
             return None
-    
+
     def get_technician_current_workload(self, technician_id: str) -> int:
         try:
-            with httpx.Client(timeout=10) as client:
-                response = client.get(
-                    f"{self.base_url}/api/ai/technicians/{technician_id}/workload",
-                    headers=self.headers
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return int(data.get("currentWorkload", 0))
-                return 0
+            conn   = self._get_db_connection()
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT COUNT(*) as CurrentWorkload
+                FROM Bookings
+                WHERE TechnicianId = %s AND Status IN (0, 1)
+            """, (technician_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return int(row['CurrentWorkload']) if row else 0
         except Exception as e:
-            logger.error(f"❌ Error getting workload: {e}")
+            logger.error(f"❌ Error fetching workload: {e}")
             return 0
-    
+
     def get_technician_reviews_avg(self, technician_id: str) -> float:
         try:
-            with httpx.Client(timeout=10) as client:
-                response = client.get(
-                    f"{self.base_url}/api/ai/technicians/{technician_id}/rating",
-                    headers=self.headers
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    return float(data.get("averageRating", 0.0))
-                return 0.0
+            conn   = self._get_db_connection()
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT AVG(CAST(Rating AS FLOAT)) as AvgRating
+                FROM Reviews
+                WHERE TechnicianId = %s
+            """, (technician_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return float(row['AvgRating']) if row and row['AvgRating'] else 0.0
         except Exception as e:
-            logger.error(f"❌ Error getting rating: {e}")
+            logger.error(f"❌ Error fetching reviews: {e}")
             return 0.0
-    
+
     def close(self):
         pass
