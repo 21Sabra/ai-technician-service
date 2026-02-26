@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     API_PORT: int = 5000
     API_HOST: str = "0.0.0.0"
 
+    # Database
+    DB_SERVER: str = ""
+    DB_NAME: str = ""
+    DB_USER: str = ""
+    DB_PASSWORD: str = ""
+
     # Environment
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
@@ -25,7 +31,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "case_sensitive": False,
-        "extra": "ignore"  # ✅ بيتجاهل أي variables زيادة في الـ .env
+        "extra": "ignore"
     }
 
 
