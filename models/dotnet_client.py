@@ -15,6 +15,7 @@ class DotNetClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type":  "application/json"
         }
+        self.timeout = 10
 
     def get_available_technicians(self) -> List[Dict]:
         """GET /api/Technicians/available"""
@@ -22,7 +23,7 @@ class DotNetClient:
             url = f"{self.base_url}/api/Technicians/available"
             logger.info(f"Fetching available technicians from {url}")
 
-            with httpx.Client(timeout=10) as client:
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(url, headers=self.headers)
 
             if response.status_code != 200:
@@ -49,10 +50,10 @@ class DotNetClient:
             return self._get_fallback_technicians()
 
     def get_technician_stats(self, technician_id: str) -> Optional[Dict]:
-        """GET /api/Technicians/{id}"""
+        """GET /api/Technicians/{id}/stats"""
         try:
-            url = f"{self.base_url}/api/Technicians/{technician_id}"
-            with httpx.Client(timeout=10) as client:
+            url = f"{self.base_url}/api/Technicians/{technician_id}/stats"
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(url, headers=self.headers)
 
             if response.status_code != 200:
@@ -69,25 +70,31 @@ class DotNetClient:
             return {'TotalBookings': 10, 'CompletedBookings': 8, 'SuccessRate': 0.80}
 
     def get_technician_current_workload(self, technician_id: str) -> int:
+        """GET /api/Technicians/{id}/workload"""
         try:
-            url = f"{self.base_url}/api/Technicians/{technician_id}"
-            with httpx.Client(timeout=10) as client:
+            url = f"{self.base_url}/api/Technicians/{technician_id}/workload"
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(url, headers=self.headers)
+
             if response.status_code != 200:
                 return 2
+
             return int(response.json().get('currentWorkload', 2))
         except Exception as e:
             logger.error(f"Error fetching workload for {technician_id}: {e}")
             return 2
 
     def get_technician_reviews_avg(self, technician_id: str) -> float:
+        """GET /api/Technicians/{id}/rating"""
         try:
-            url = f"{self.base_url}/api/Technicians/{technician_id}"
-            with httpx.Client(timeout=10) as client:
+            url = f"{self.base_url}/api/Technicians/{technician_id}/rating"
+            with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(url, headers=self.headers)
+
             if response.status_code != 200:
                 return 4.0
-            return float(response.json().get('rating', 4.0))
+
+            return float(response.json().get('avgRating', 4.0))
         except Exception as e:
             logger.error(f"Error fetching rating for {technician_id}: {e}")
             return 4.0
