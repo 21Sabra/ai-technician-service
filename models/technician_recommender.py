@@ -230,11 +230,10 @@ class TechnicianRecommender:
                 for t in scored[1:3]
             ],
             'factors': {
-                'specialization_match': round(best['features']['specialization'], 2),
-                'location_proximity':   0.0,
-                'rating':               round(best['features']['rating'], 2),
-                'workload':             self._workload_label(best['features']['availability'])
-            }
+    'specializationMatch': round(best['features']['specialization_match'], 2),
+    'rating':              round(best['features']['avg_rating'], 2),
+    'workload':            self._workload_label(best['features']['workload_score'])
+}
         }
 
     def _calc_performance(self, tech_id: str) -> float:

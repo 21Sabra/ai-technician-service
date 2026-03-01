@@ -4,10 +4,8 @@ from typing import List, Optional
 
 class AssignmentFactorsDto(BaseModel):
     specialization_match: float = Field(..., alias="specializationMatch")
-    location_proximity: float = Field(..., alias="locationProximity")
     rating: float
     workload: str
-    estimated_arrival_time: Optional[str] = Field(None, alias="estimatedArrivalTime")
 
     model_config = {"populate_by_name": True}
 
